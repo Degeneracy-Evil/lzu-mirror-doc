@@ -209,10 +209,79 @@ mdadm --detail /dev/md0 /dev/md1
 
 ## 10. 监控
 
-- `cat /proc/mdstat`、`mdadm --detail` 作为主要来源。
-- `smartctl -a /dev/sdX` 每块盘独立健康（HBA 直通）。
-- 启用 `mdmonitor` / `mdadm` 告警邮件（`/etc/mdadm/mdadm.conf` 的 `MAILADDR`）。
-- 接入 Observability 后的 exporter、dashboard、alert 策略见 `docs/09-observability/`。
+主机层监控至少覆盖 `docs/02-os-host/architecture.md` §13 的健康项。具体 exporter、dashboard 与 alert policy 留给 `docs/09-observability/`；本节只写 OS 层可直接执行的部分。
+
+### 10.1 SMART 与固件版本
+
+```bash
+apt install smartmontools
+systemctl enable --now smartd
+
+smartctl --scan
+smartctl -a /dev/sdX        # SATA / SAS 盘
+smartctl -a /dev/nvme0      # NVMe
+```
+
+**HBA 直通模式下，SMART 直接对真实块设备读取，不需要 RAID 控制器参数。** 若以后盘改由硬件 RAID / 非 HBA 暴露，才需要 `-d megaraid,N` 之类的写法——当前设计不涉及。
+
+按盘类型重点关注：
+
+- **SATA/SAS SSD**（Intel S46xx 系统盘）：`Reallocated_Sector_Ct(5)`、`Available_Reservd_Space(170/232)`、`Program_Fail_Count(171)`、`Erase_Fail_Count(172)`、`End-to-End_Error_Count(184)`、`Uncorrectable_Error_Cnt(187)`、`CRC_Error_Count(199)`、`Media_Wearout_Indicator(233)`、`Power_Loss_Cap_Test(175/235)`、温度 `190/194`。
+- **HDD**（WDC / HGST）：`Reallocated_Sector_Ct(5)`、`Current_Pending_Sector(197)`、`Offline_Uncorrectable(198)`、`UDMA_CRC_Error_Count(199)`、`Raw_Read_Error_Rate(1)`、温度 `194`。
+- **SAS**：`Elements in grown defect list`、`Non-medium error count`、`Total uncorrected errors`、`Current Drive Temperature`。
+- **NVMe**：`Critical Warning`、`Available Spare` / 阈值、`Percentage Used`、**`Media and Data Integrity Errors`（非 0 需立即处理）**、`Warning/Critical Composite Temperature Time`。
+
+判断方法：`Pre-fail` 类预示临期故障，`Old_age` 类反映老化；`VALUE` 低于 `THRESH` 即视为异常。
+
+自检与日志：
+
+```bash
+smartctl -t short /dev/sdX
+smartctl -t long  /dev/sdX
+smartctl -l selftest /dev/sdX
+```
+
+大容量 HDD 的 long 测试耗时长且影响性能，安排在维护窗口；可用 smartd 的 `-s` 计划执行。
+
+**固件版本必须核对。** 数据中心 SSD 有过“达到某个通电小时数后批量损坏”的固件缺陷先例；同批次同型号盘会同时爆发，RAID 冗余救不了。系统盘 Intel S46xx 已约 6.8 万小时、Percent Life 74%，尤其要先确认固件并关注公告。能用 `fwupd` 的优先用 `fwupd`，否则用厂商官方工具（属非 APT 工具，需走包管理策略）。
+
+smartd 默认配置：
+
+```conf
+DEVICESCAN -d removable -n standby -m root -M exec /usr/share/smartmontools/smartd-runner
+```
+
+`-M test` 可在启动时发测试邮件验证告警链路。
+
+### 10.2 mdraid 状态
+
+```bash
+cat /proc/mdstat
+mdadm --detail /dev/md1
+mdadm --examine /dev/disk/by-id/<SSD_A>-part3
+systemctl enable --now mdmonitor
+```
+
+在 `/etc/mdadm/mdadm.conf` 配置 `MAILADDR`（或 `PROGRAM` 事件脚本），关注 `Fail`、`DegradedArray`、`SpareMissing`、`RebuildStarted/Finished` 等事件。
+
+- RAID1：定期 scrub，`echo check` / `repair` 后看 `mismatch_cnt`（见 §7）。
+- RAID0：无冗余、无可修复状态，监控重点落在单盘 SMART，而不是阵列一致性。
+
+### 10.3 接入 Observability
+
+主机层只需先暴露指标来源：
+
+- SMART / 固件版本（`smartd` / `smartctl`）
+- mdraid 状态（`/proc/mdstat`、`mdadm --detail`）
+- NVMe 健康、文件系统容量、温度（`docs/02-os-host/architecture.md` §13）
+
+最终 exporter、dashboard、alert 路由由 `docs/09-observability/` 决定。可参考 telegraf 的 `mdstat` / `smart` 插件，以及 USTC 的 [raid-telegraf](https://github.com/ustclug/raid-telegraf) 与 Grafana dashboard 20645，但仅作参考，不预设选型。
+
+### 10.4 待决策
+
+- 主机是否运行完整 MTA 发告警邮件，还是只把告警送 Observability（减少主机攻击面）。
+- smartd 自检计划、温度阈值与各项告警阈值。
+- 系统盘固件升级方式（`fwupd` vs 厂商工具 / 带外）。
 
 ## 11. 待冻结项
 
@@ -221,3 +290,4 @@ mdadm --detail /dev/md0 /dev/md1
 - `/boot` 布局与 ESP 镜像方法
 - pool 到 `/srv/*` 的最终映射
 - `perccli` 是否纳入、固件升级走 OS 还是带外
+- 主机监控/告警链路（MTA vs Observability，见 §10.4）
