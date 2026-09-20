@@ -12,7 +12,7 @@
 | Sync Policy | 未开始 |
 | Nginx / Serving | 未开始 |
 | Network | 未开始 |
-| Security | 未开始 |
+| Security | 第一版草稿完成，尚未冻结 |
 | Observability / Logging | 未开始 |
 | Frontend | 未开始 |
 | Backup / DR | 未开始 |
