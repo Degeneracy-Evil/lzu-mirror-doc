@@ -1,6 +1,6 @@
 # OS / Host Architecture
 
-> 本文记录第一版目标。具体分区表、sysctl、服务 hardening 参数等仍将在正式安装前继续细化。
+> **Provisional**：本文记录主机目标与系统盘启动候选布局，尚未部署。分区命令、sysctl、服务 hardening 参数等仍将在正式安装前继续细化。
 
 ## 1. Host Philosophy
 
@@ -36,8 +36,26 @@ Ubuntu 26.04
            /
 ```
 
-EFI / boot 的精确布局尚未冻结，但最终应验证任意一块系统 SSD 缺失时仍可独立启动。
+启动布局候选（两块 SSD 对称分区）：
 
+| 分区 | 每盘候选大小 | 组织方式 | 用途 |
+|---|---|---|---|
+| EFI System Partition | 1 GiB | 每盘独立 FAT32，不加入 mdraid | 两块盘各自具备 UEFI 启动文件 |
+| boot 成员分区 | 2 GiB | mdadm RAID1 + ext4，metadata 1.0 | `/boot`|
+| root 成员分区 | 剩余对齐空间 | mdadm RAID1 + ext4，metadata 1.2 | `/` 和关键服务状态 |
+
+使用 GPT、1 MiB 对齐，并按两块 SSD 实际较小容量确定相同成员大小。暂不单独划分 swap；是否启用及大小需结合内存与工作负载确定，大型任务不能依靠 swap 掩盖容量不足。
+
+ESP 不受 RAID1 保护。两块 ESP 都需安装可启动的签名引导文件，并有明确的更新同步与校验流程；不能假定更新 `/boot` 就会更新第二块 ESP。记录两个 ESP 的 UUID 和固件启动项，
+
+在投产前的预演环境验证：
+
+  1. 双 SSD 正常冷启动。
+  2. 仅 SSD A 存在时冷启动。
+  3. 仅 SSD B 存在时冷启动。
+  4. 更新一次内核和引导组件后，重复两种单盘启动。
+  5. 恢复双盘，确认 RAID1 能正确恢复同步，两个 ESP 文件符合预期。
+  6. HDD 数据池不可用时，仍能进入系统维护，数据服务不会误写根分区
 暂不引入 LVM；如后续出现明确需求再重新评估。
 
 ## 3. State Boundary
@@ -158,9 +176,9 @@ NIC、bond、VLAN、IPv4/IPv6、MTU、routing 等细节留给 Network 设计。
 当前方向：
 
 - AppArmor 保持启用
-- Secure Boot 倾向启用
+- Secure Boot 关闭
 - root SSH 禁止
-- password SSH 倾向禁用
+- password SSH 禁用
 - 最小化公网开放服务
 - 服务使用独立用户
 - 暂不对系统盘使用 LUKS

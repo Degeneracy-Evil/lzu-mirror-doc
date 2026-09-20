@@ -1,6 +1,6 @@
 # OS / Host
 
-**Status: First design completed, implementation not started**
+**Status: Provisional — 第一版设计及系统盘启动候选布局完成，尚未实施**
 
 目标系统：
 

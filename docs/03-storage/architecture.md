@@ -46,7 +46,7 @@ RAID1
     ↓
 OS / control-plane persistent state
 
-1 TB NVMe
+GM7 1 TB NVMe
     ↓
 TBD
 
@@ -59,10 +59,10 @@ TBD
 TBD
 ```
 
-当前文件系统方向：
+本轮候选方案：
 
-- HDD RAID0：倾向 `mdadm + XFS`
-- system SSD RAID1：倾向 `mdadm + ext4`
+- HDD RAID0：`mdadm + XFS`
+- system SSD RAID1：`mdadm + ext4`
 
 ## 4. Why 3 + 3 Instead of 6-Disk RAID0
 
@@ -99,7 +99,11 @@ TBD
 
 ### 1 TB NVMe
 
-用途待定。可能承担高 IOPS、可重建的数据，例如 observability hot data、cache 或 temporary workspace，但正式角色需要根据具体型号和后续工作负载决定。
+- 型号：GM7
+- 容量：1 TB
+- 接口：PCIe Gen4 x4（NVMe）
+- 外形规格：M.2
+
 
 ### 32 GB Optane
 
@@ -119,15 +123,17 @@ v1 不为了“使用 Optane”而主动增加 cache / journal 层。只有实�
 
 是否成为第二个 LMT Node 或承担 Serving，留到 Network / Serving 设计阶段。
 
+
 ## 8. Open Decisions
 
 尚未冻结：
 
-- RAID chunk size
-- filesystem mkfs parameters
-- mount options
-- exact directory layout
-- capacity reserve
-- primary / bulk 最终内容分配
-- NVMe / Optane / 300 GB disk 的最终职责
-- ops 节点最终生产角色
+    - RAID chunk size
+    - filesystem mkfs parameters
+    - mount options
+    - exact directory layout
+    - capacity reserve
+    - primary / bulk 最终内容分配
+    - NVMe / Optane / 300 GB disk 的最终职责
+    - ops 节点最终生产角色
+

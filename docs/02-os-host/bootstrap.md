@@ -1,6 +1,5 @@
 # OS Bootstrap
 
-**Status: Not started**
 
 本文件后续记录 Ubuntu 26.04 clean install 完成后的可重复 bootstrap 流程。
 
