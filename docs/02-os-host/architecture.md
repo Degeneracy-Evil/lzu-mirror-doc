@@ -186,11 +186,14 @@ Nginx access log 因数据量特殊，后续单独设计。
 
 OS 层至少应提供：
 
-- SMART
-- mdraid state
-- NVMe health
+- SMART / 固件版本 —— `smartmontools`（`smartctl`、`smartd`）
+- mdraid state —— `mdadm` / `/proc/mdstat` / `mdmonitor`
+- NVMe health —— `smartctl -a /dev/nvme0` / `nvme-cli`
 - filesystem capacity
 - thermal state
 - NIC state
 
+HBA 直通模式下，SMART 直接读取真实块设备，无需 RAID 控制器参数。
+
+可执行步骤见 [runbooks/mdraid-build-and-replace.md](../../runbooks/mdraid-build-and-replace.md) §10。
 具体 metrics、dashboard 和 alert policy 留给 Observability。
