@@ -7,15 +7,14 @@
 预计覆盖：
 
 - boot / partitioning
-- mdraid root
+- single-disk root filesystem
 - base packages
 - users / groups
 - SSH
 - chrony
-- Netplan
+- Netplan + systemd-networkd
 - package/update policy
 - systemd baseline
-- AppArmor
 - hardware health tooling
 - initial validation
 

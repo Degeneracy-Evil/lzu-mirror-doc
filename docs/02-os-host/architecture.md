@@ -10,9 +10,8 @@
 Ubuntu 26.04
     │
     ├── systemd
-    ├── Netplan + systemd-networkd
+    ├── Netplan → systemd-networkd
     ├── chrony
-    ├── AppArmor
     ├── native Linux storage
     │
     ├── LMT
@@ -24,25 +23,27 @@ Ubuntu 26.04
 
 ## 2. System Disk Direction
 
+系统盘不做 RAID。
+
 当前方向：
 
 ```text
-2 × Intel 480 GB SATA SSD
-          │
-      mdadm RAID1
+single dedicated system disk
           │
          ext4
           │
            /
 ```
 
-EFI / boot 的精确布局尚未冻结，但最终应验证任意一块系统 SSD 缺失时仍可独立启动。
+具体使用哪一块现有或新增磁盘，在正式迁移前再决定。
+
+系统盘故障通过配置备份、关键状态备份和可重复 bootstrap 解决，而不是通过本机 RAID1 增加系统盘层级复杂度。
 
 暂不引入 LVM；如后续出现明确需求再重新评估。
 
 ## 3. State Boundary
 
-系统 RAID1 保存小体量、关键的持久状态，例如：
+系统盘保存小体量、关键的持久状态，例如：
 
 - OS 与 systemd units
 - LMT Server database
@@ -51,6 +52,8 @@ EFI / boot 的精确布局尚未冻结，但最终应验证任意一块系统 SS
 - credentials / tokens
 - Nginx configuration
 - observability configuration
+
+这些关键状态需要有独立的备份 / 恢复方案，不能因为系统盘是单盘就只保留唯一副本。
 
 大体量或可重建数据不放在 root filesystem：
 
@@ -62,14 +65,9 @@ EFI / boot 的精确布局尚未冻结，但最终应验证任意一块系统 SS
 
 ## 4. Service Data Namespace
 
-大型生产数据统一使用 `/srv`，mount point 描述**用途**而不是硬件：
+大型生产数据统一使用 `/srv`。最终 mount point 应描述服务用途，而不是历史硬件名称。
 
-```text
-/srv/lmt-data
-/srv/bulk
-/srv/fast
-/srv/recovery
-```
+具体多个主存储池如何映射到目录树尚未冻结；当前不预设 `/srv/bulk` 这类“次级存储”角色。
 
 不继续使用类似 `/mnt/tank2`、`/mnt/9traid` 这种绑定历史硬件的名字。
 
@@ -88,15 +86,24 @@ EFI / boot 的精确布局尚未冻结，但最终应验证任意一块系统 SS
 
 ## 6. Network Baseline
 
-OS 层先确定：
+Netplan 与 NetworkManager 不是同一层的替代关系。
+
+本项目选择：
 
 ```text
-Netplan
-  ↓
+/etc/netplan/*.yaml
+        │
+      Netplan
+        │
+        ▼
 systemd-networkd
 ```
 
-Server 不以 NetworkManager 作为生产网络管理层。
+也就是说：
+
+- **Netplan** 是持久网络配置入口；
+- **systemd-networkd** 是实际管理服务器网卡的 renderer；
+- **NetworkManager** 不作为本机生产网络管理器。
 
 NIC、bond、VLAN、IPv4/IPv6、MTU、routing 等细节留给 Network 设计。
 
@@ -124,7 +131,6 @@ NIC、bond、VLAN、IPv4/IPv6、MTU、routing 等细节留给 Network 设计。
 升级后需要专门验证：
 
 - systemd / cgroup v2 行为
-- Dracut + mdraid root 启动
 - rust-coreutils 对现有运维脚本的兼容性
 - LMT installer / maintenance scripts
 - `/tmp` 默认 tmpfs 对大文件任务的影响
@@ -157,13 +163,14 @@ NIC、bond、VLAN、IPv4/IPv6、MTU、routing 等细节留给 Network 设计。
 
 当前方向：
 
-- AppArmor 保持启用
-- Secure Boot 倾向启用
+- Secure Boot：**关闭**
 - root SSH 禁止
 - password SSH 倾向禁用
 - 最小化公网开放服务
 - 服务使用独立用户
 - 暂不对系统盘使用 LUKS
+
+Secure Boot 当前不属于本项目的主要 threat model，关闭它可以减少启动链、驱动和后续维护上的额外约束。若未来安全模型发生变化，再重新评估。
 
 Firewall 的最终实现和完整 host hardening 留给 Network / Security 设计。
 
@@ -187,7 +194,7 @@ Nginx access log 因数据量特殊，后续单独设计。
 OS 层至少应提供：
 
 - SMART
-- mdraid state
+- RAID state
 - NVMe health
 - filesystem capacity
 - thermal state

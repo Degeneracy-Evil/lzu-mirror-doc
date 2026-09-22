@@ -13,12 +13,13 @@
 
 ## Current Role Direction
 
-该节点当前考虑作为：
+该节点是镜像站的**正式主存储节点之一**，不是仅用于迁移或恢复的辅助节点。
 
-- secondary storage
+除了承担长期生产存储外，它仍可在本次重构过程中兼任：
+
 - migration buffer
 - recovery source
 
-它是否承担长期生产 Serving、第二 LMT Agent 节点或其他职责，尚未冻结。
+它是否运行第二个 LMT Agent、是否直接承担公网 Serving，以及与 main 节点之间的流量路径，留到 Network / Serving 设计阶段确定。
 
-由于底层 OpenStack storage 的物理拓扑、冗余和 fault domain 尚未完全掌握，目前不把该节点假定为与主机等价的可靠性副本。
+由于底层 OpenStack storage 的物理拓扑、冗余和 fault domain 尚未完全掌握，目前不把该节点视为其他主存储池的“可靠性副本”；它是独立的生产存储域。
